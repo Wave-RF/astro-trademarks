@@ -1,0 +1,15 @@
+/* @wave-rf/astro-trademarks — the inserted symbol.
+ *
+ * Raised and shrunk without opening up the line it lands on (line-height: 0),
+ * and real text rather than ::after, so it still copies and is read out.
+ * Zero specificity (:where) so any site rule overrides it; or set the
+ * variables instead.
+ */
+:where(.tm-symbol) {
+  font-size: var(--tm-symbol-font-size, 0.62em);
+  line-height: 0;
+  vertical-align: var(--tm-symbol-offset, 0.45em);
+  /* Notation, not part of the sentence: don't inherit italics from emphasis.
+     Weight is inherited on purpose, so it doesn't look detached in bold text. */
+  font-style: normal;
+}

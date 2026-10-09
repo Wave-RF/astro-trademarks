@@ -1,0 +1,71 @@
+---
+// The notices placeholder. It renders a fixed shell; the package's middleware
+// fills `[data-tm-slot]` with notices for exactly the marks it found on THIS
+// page, or removes the whole block when the page names no mark.
+//
+// Without the middleware running, the shell still renders the catch-all and
+// disclaimer — the conservative failure.
+//
+// Styling is CSS variables only (see README "Styling"), at zero specificity
+// (global :where rules) so any site rule wins.
+
+interface Props {
+  /** Heading line above the notices, e.g. "Trademark notices". Omitted when unset. */
+  title?: string;
+  /**
+   * Line after the notices covering marks with no `owner`. `false` omits it.
+   * Default: "All other trademarks are the property of their respective owners."
+   */
+  catchAll?: string | false;
+  /** Your own disclaimer, e.g. a non-affiliation statement. Omitted when unset. */
+  disclaimer?: string;
+  /** Element for the wrapper. Default `"div"`. */
+  as?: "div" | "aside" | "section" | "footer";
+  /** Extra classes for the wrapper. */
+  class?: string;
+}
+
+const {
+  title,
+  catchAll = "All other trademarks are the property of their respective owners.",
+  disclaimer,
+  as: Tag = "div",
+  class: className,
+} = Astro.props;
+---
+
+<Tag class:list={["tm-notices", className]} data-tm-notices>
+  {title && <p class="tm-notices__title">{title}</p>}
+  <p class="tm-notices__body"><span class="tm-notices__list" data-tm-slot></span>{catchAll && <span class="tm-notices__catch-all">{catchAll}</span>}</p>
+  {disclaimer && <p class="tm-notices__disclaimer">{disclaimer}</p>}
+</Tag>
+
+<!--
+  is:global + :where() = zero specificity. A scoped style would add Astro's
+  scope attribute to every selector and tie with a site's own utility classes;
+  these class names are namespaced (tm-), so global is safe.
+-->
+<style is:global>
+  :where(.tm-notices) {
+    font-size: var(--tm-notices-font-size, 0.75rem);
+    line-height: var(--tm-notices-line-height, 1.5);
+    color: var(--tm-notices-color, inherit);
+  }
+  :where(.tm-notices > p) {
+    margin: 0;
+  }
+  :where(.tm-notices > p + p) {
+    margin-top: var(--tm-notices-gap, 0.5em);
+  }
+  :where(.tm-notices__title) {
+    font-weight: var(--tm-notices-title-font-weight, 600);
+    color: var(--tm-notices-title-color, inherit);
+  }
+  /* Inserted by the middleware after render. */
+  :where(.tm-notices__list .tm-notice) {
+    display: var(--tm-notice-display, inline);
+  }
+  :where(.tm-notices__disclaimer) {
+    color: var(--tm-notices-disclaimer-color, inherit);
+  }
+</style>
