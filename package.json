@@ -1,6 +1,6 @@
 {
   "name": "@wave-rf/astro-trademarks",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Astro integration that marks the first mention of each third-party trademark on a page with ® or ™ and renders that page's trademark notices — for .astro, Markdown, MDX and Starlight pages alike.",
   "keywords": [
     "astro",
