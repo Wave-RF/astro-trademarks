@@ -221,3 +221,23 @@ export const STARLIGHT_EXPECTATIONS = {
     block: true,
   },
 };
+
+/** Exact notice-link markup the fixtures must produce (escaped, rel, no target). */
+export const LINK_EXPECTATIONS = {
+  "index.html": [
+    '<a class="tm-notice__link" href="https://clickhouse.example/?ref=a&amp;b=1" rel="noopener noreferrer">https://clickhouse.example/?ref=a&amp;b=1</a>',
+  ],
+  // Grafana and Grafana Loki share one owner sentence and one URL: linked once.
+  "markdown/index.html": [
+    '<a class="tm-notice__link" href="https://grafana.example" rel="noopener noreferrer">https://grafana.example</a>',
+  ],
+};
+
+export function checkLinks(html, expected, label) {
+  const anchors = html.match(/<a class="tm-notice__link"[^>]*>[^<]*<\/a>/g) ?? [];
+  if (JSON.stringify(anchors) !== JSON.stringify(expected)) {
+    throw new Error(
+      `${label}: notice links ${JSON.stringify(anchors)}, expected ${JSON.stringify(expected)}`
+    );
+  }
+}

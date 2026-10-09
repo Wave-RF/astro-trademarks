@@ -8,6 +8,7 @@ import {
   noticesForText,
   stripMarkdownCode,
   type Trademark,
+  trademarkNoticeEntries,
   trademarkNotices,
 } from "../src/core.ts";
 
@@ -318,6 +319,90 @@ describe("trademarkNotices", () => {
 
   test("marks without an owner produce no sentence", () => {
     assert.deepEqual(trademarkNotices([{ name: "Acme", symbol: "™" }]), []);
+  });
+});
+
+describe("links", () => {
+  const CH_L: Trademark = { ...CH, link: "https://clickhouse.example" };
+  const G_L: Trademark = { ...GRAFANA, link: "https://grafana.example" };
+  const LOKI_SAME: Trademark = { ...LOKI, link: "https://grafana.example" };
+  const LOKI_OWN: Trademark = { ...LOKI, link: "https://grafana.example/loki" };
+
+  test("rejects anything but an absolute http(s) URL", () => {
+    for (const link of [
+      "javascript:alert(1)",
+      "JavaScript:alert(1)",
+      " javascript:alert(1)",
+      "data:text/html,<b>x</b>",
+      "vbscript:x",
+      "ftp://example.com",
+      "/relative",
+      "//example.com",
+      "https:example.com",
+      'https://example.com/"onmouseover="x',
+      "https://example.com/<script>",
+      "https://exa mple.com",
+      "",
+    ]) {
+      assert.throws(
+        () => defineTrademarks([{ name: "X", symbol: "™", owner: "O", link }]),
+        /link must be an absolute http: or https: URL/,
+        link
+      );
+    }
+    assert.doesNotThrow(() =>
+      defineTrademarks([
+        { name: "X", symbol: "™", owner: "O", link: "https://example.com/a?b=1&c=2#d" },
+        { name: "Y", symbol: "™", owner: "O", link: "http://example.com" },
+      ])
+    );
+  });
+
+  test("plain-text notice: the bare URL after the sentence", () => {
+    assert.deepEqual(trademarkNotices([CH_L]), [
+      "ClickHouse® is a registered trademark of ClickHouse, Inc. https://clickhouse.example",
+    ]);
+  });
+
+  test("one owner group: identical URLs once, distinct URLs in mark order", () => {
+    const registry = [CH_L, G_L, LOKI_SAME, LOKI_OWN];
+    assert.deepEqual(trademarkNoticeEntries([LOKI_SAME, G_L], registry), [
+      {
+        text: "Grafana® and Grafana Loki™ are trademarks of Grafana Labs.",
+        links: ["https://grafana.example"],
+      },
+    ]);
+    assert.deepEqual(trademarkNoticeEntries([LOKI_OWN, G_L], registry)[0]?.links, [
+      "https://grafana.example",
+      "https://grafana.example/loki",
+    ]);
+  });
+
+  test("a verbatim notice keeps its link", () => {
+    const m: Trademark = {
+      name: "Z",
+      symbol: "®",
+      notice: "Z® is theirs.",
+      link: "https://z.example",
+    };
+    assert.deepEqual(trademarkNotices([m]), ["Z® is theirs. https://z.example"]);
+  });
+
+  test("an ownerless mark's link is ignored", () => {
+    assert.deepEqual(
+      trademarkNotices([{ name: "Acme", symbol: "™", link: "https://acme.example" }]),
+      []
+    );
+  });
+
+  test("noticesForText: bare URL in text, autolink in markdown", () => {
+    const marks = defineTrademarks([CH_L]);
+    assert.deepEqual(noticesForText("ClickHouse", marks, { catchAll: false }), [
+      "ClickHouse® is a registered trademark of ClickHouse, Inc. https://clickhouse.example",
+    ]);
+    assert.deepEqual(noticesForText("ClickHouse", marks, { catchAll: false, markdown: true }), [
+      "ClickHouse® is a registered trademark of ClickHouse, Inc. <https://clickhouse.example>",
+    ]);
   });
 });
 

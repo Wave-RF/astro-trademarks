@@ -55,6 +55,7 @@ export { createTrademarksMiddleware, transformResponse } from "./handler.ts";
 export {
   DEFAULT_SKIP_CLASSES,
   DEFAULT_SKIP_TAGS,
+  SKIP_ROLES,
   STARLIGHT_SKIP_CLASSES,
   type TransformHtmlOptions,
   type TransformHtmlResult,

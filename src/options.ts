@@ -33,6 +33,12 @@ export interface TrademarksOptions {
   /** Class on the inserted symbol `<span>`. Default `"tm-symbol"`. */
   symbolClass?: string;
   /**
+   * `target` for notice links (a mark's `link`). Default `"_self"`: no
+   * `target` attribute, the link opens in the same tab like any other link.
+   * `"_blank"` opens a new tab. Links always carry `rel="noopener noreferrer"`.
+   */
+  linkTarget?: "_self" | "_blank";
+  /**
    * Inject the package's `styles.css` (the `.tm-symbol` superscript rule) on
    * every page. Default `true`. Set `false` to style `.tm-symbol` yourself.
    */
@@ -64,6 +70,7 @@ export interface ResolvedTrademarksOptions {
   skipTags: string[];
   skipClasses: string[];
   symbolClass: string;
+  linkTarget: "_self" | "_blank";
   onDemand: boolean;
   machineReadable: { markdown: boolean; plain: boolean; catchAll: string | false };
 }
@@ -93,6 +100,7 @@ export function resolveOptions(
       ...(options.skipClasses ?? []),
     ]),
     symbolClass: options.symbolClass ?? "tm-symbol",
+    linkTarget: options.linkTarget === "_blank" ? "_blank" : "_self",
     onDemand: options.onDemand ?? true,
     machineReadable: {
       markdown: options.machineReadable?.markdown ?? false,

@@ -56,6 +56,12 @@ describe("skip rules (golden)", () => {
     ["[aria-hidden]", '<p aria-hidden="true">ClickHouse</p>'],
     ["[hidden]", "<p hidden>ClickHouse</p>"],
     ["[data-tm-skip]", "<p data-tm-skip>ClickHouse</p>"],
+    ["nav", '<nav><a href="/x">ClickHouse</a></nav>'],
+    ["menu", "<menu><li>ClickHouse</li></menu>"],
+    ['[role="menu"]', '<ul role="menu"><li><a href="/x">ClickHouse</a></li></ul>'],
+    ['[role="menubar"]', '<div role="menubar"><span>ClickHouse</span></div>'],
+    ['[role="menuitem"]', '<ul><li role="menuitem">ClickHouse</li></ul>'],
+    ['[role="navigation"]', '<div role="navigation">ClickHouse</div>'],
   ];
   for (const [rule, markup] of skipped) {
     test(`${rule}: no symbol, no notice, and the next prose mention is the first`, () => {
@@ -147,7 +153,10 @@ describe("first mention", () => {
       mainOf(r.html),
       `<p>Grafana Loki${SYM("™")} feeds Grafana${SYM("®")}. Loki again.</p>`
     );
-    assert.deepEqual(r.notices, ["Grafana® and Grafana Loki™ are trademarks of Grafana Labs."]);
+    assert.deepEqual(
+      r.notices.map((n) => n.text),
+      ["Grafana® and Grafana Loki™ are trademarks of Grafana Labs."]
+    );
   });
 
   test("a word split across elements is not a mention", () => {
@@ -172,7 +181,10 @@ describe("symbols already on the page", () => {
   test("typed in prose: counted, not doubled", () => {
     const r = run(page("<p>ClickHouse® and ClickHouse.</p>"));
     assert.equal(mainOf(r.html), "<p>ClickHouse® and ClickHouse.</p>");
-    assert.deepEqual(r.notices, ["ClickHouse® is a registered trademark of ClickHouse, Inc."]);
+    assert.deepEqual(
+      r.notices.map((n) => n.text),
+      ["ClickHouse® is a registered trademark of ClickHouse, Inc."]
+    );
   });
 
   test("as an entity and in a following element", () => {
@@ -268,6 +280,64 @@ describe("source fidelity", () => {
   test("idempotent", () => {
     const once = run(page("<p>ClickHouse, Grafana and BLE.</p>")).html;
     assert.equal(run(once).html, once);
+  });
+});
+
+describe("notice links", () => {
+  const LINKED = defineTrademarks([
+    {
+      name: "ClickHouse",
+      symbol: "®",
+      owner: "ClickHouse, Inc.",
+      link: "https://clickhouse.example/?a=1&b=2",
+    },
+    { name: "Grafana", symbol: "®", owner: "Grafana Labs", link: "https://grafana.example" },
+    {
+      name: "Grafana Loki",
+      aliases: ["Grafana Loki", "Loki"],
+      symbol: "™",
+      owner: "Grafana Labs",
+      link: "https://grafana.example",
+    },
+    { name: "Acme", symbol: "™", link: "https://acme.example" },
+  ]);
+  const notice = (html: string) =>
+    /<span data-tm-slot>([\s\S]*?)<\/span><span>All other/.exec(html)?.[1];
+
+  test("golden: the URL is linked after the sentence, escaped, with rel", () => {
+    const r = transformHtml(page("<p>ClickHouse runs.</p>"), { marks: LINKED });
+    assert.equal(
+      notice(r.html),
+      '<span class="tm-notice">ClickHouse® is a registered trademark of ClickHouse, Inc. <a class="tm-notice__link" href="https://clickhouse.example/?a=1&amp;b=2" rel="noopener noreferrer">https://clickhouse.example/?a=1&amp;b=2</a></span> '
+    );
+  });
+
+  test('linkTarget: "_blank"', () => {
+    const r = transformHtml(page("<p>ClickHouse</p>"), { marks: LINKED, linkTarget: "_blank" });
+    assert.ok(r.html.includes('rel="noopener noreferrer" target="_blank">'));
+  });
+
+  test("one owner group, one identical URL: linked once", () => {
+    const r = transformHtml(page("<p>Grafana Loki and Grafana</p>"), { marks: LINKED });
+    assert.equal(
+      notice(r.html),
+      '<span class="tm-notice">Grafana® and Grafana Loki™ are trademarks of Grafana Labs. <a class="tm-notice__link" href="https://grafana.example" rel="noopener noreferrer">https://grafana.example</a></span> '
+    );
+  });
+
+  test("an ownerless mark's link is not rendered", () => {
+    const r = transformHtml(page("<p>Acme</p>"), { marks: LINKED });
+    assert.ok(!r.html.includes("acme.example"));
+  });
+
+  test("a javascript: link never reaches the page", () => {
+    const evil = [
+      { name: "Evil", symbol: "™", owner: "E", link: "javascript:alert(1)" },
+    ] as Trademark[];
+    assert.throws(
+      () => transformHtml(page("<p>Evil</p>"), { marks: evil }),
+      /link must be an absolute http/
+    );
   });
 });
 

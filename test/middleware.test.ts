@@ -7,6 +7,7 @@ import { resolveOptions, type TrademarksOptions } from "../src/options.ts";
 
 const MARKS = defineTrademarks([
   { name: "ClickHouse", symbol: "®", owner: "ClickHouse, Inc." },
+  { name: "Linked", symbol: "™", owner: "Linked Co.", link: "https://linked.example" },
   { name: "Grafana", symbol: "®", owner: "Grafana Labs" },
   { name: "Kubernetes", symbol: "®", owner: "The Linux Foundation" },
   { name: "Docker", symbol: "®", owner: "Docker, Inc." },
@@ -142,6 +143,35 @@ describe("middleware: other content types", () => {
     );
   });
 
+  test("links: autolink in markdown, bare URL in plain text, anchor in HTML", async () => {
+    const options: TrademarksOptions = {
+      marks: MARKS,
+      machineReadable: { markdown: true, plain: true, catchAll: false },
+    };
+    const md2 = await transformResponse(
+      new Response("Linked docs", { headers: { "content-type": "text/markdown" } }),
+      options
+    );
+    assert.equal(
+      await md2.text(),
+      "Linked docs\n\nLinked™ is a trademark of Linked Co. <https://linked.example>\n"
+    );
+    const txt = await transformResponse(
+      new Response("Linked docs", { headers: { "content-type": "text/plain" } }),
+      options
+    );
+    assert.equal(
+      await txt.text(),
+      "Linked docs\n\nLinked™ is a trademark of Linked Co. https://linked.example\n"
+    );
+    const html = await transformResponse(streamed(PAGE("<p>Linked</p>")), options);
+    assert.ok(
+      (await html.text()).includes(
+        '<span class="tm-notice">Linked™ is a trademark of Linked Co. <a class="tm-notice__link" href="https://linked.example" rel="noopener noreferrer">https://linked.example</a></span>'
+      )
+    );
+  });
+
   test("machineReadable.plain appends; catchAll: false drops the catch-all; nothing named, nothing added", async () => {
     const o = resolveOptions({ marks: MARKS, machineReadable: { plain: true, catchAll: false } });
     const res = await transformResponse(
@@ -165,6 +195,7 @@ describe("options", () => {
     const o = resolveOptions({ marks: MARKS });
     assert.deepEqual(o.contentRoots, ["main"]);
     assert.equal(o.symbolClass, "tm-symbol");
+    assert.equal(o.linkTarget, "_self");
     assert.equal(o.onDemand, true);
     assert.deepEqual(o.machineReadable, {
       markdown: false,

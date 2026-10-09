@@ -3,6 +3,7 @@ import Base from "../layouts/Base.astro";
 ---
 
 <Base title="Home">
+  <nav class="crumbs"><a href="/">Docker</a> / <a href="/">Grafana</a></nav>
   <h1>ClickHouse and Grafana</h1>
   <p>Our pipeline writes to ClickHouse and is read back by ClickHouse again.</p>
   <p>Each thread in the pool waits on a lock.</p>

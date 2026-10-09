@@ -8,9 +8,16 @@
 // byte-identical — no re-serialisation, no reformatted attributes, and a page
 // that names no mark is returned unchanged.
 
-import { decodeHTML, escapeText } from "entities";
+import { decodeHTML, escapeAttribute, escapeText } from "entities";
 import { parse, type DefaultTreeAdapterTypes as T } from "parse5";
-import { scanMentions, startsWithSymbol, type Trademark, trademarkNotices } from "./core.ts";
+import {
+  isSafeLink,
+  scanMentions,
+  startsWithSymbol,
+  type Trademark,
+  type TrademarkNotice,
+  trademarkNoticeEntries,
+} from "./core.ts";
 
 /** Elements whose text is never marked. Spec default; see README. */
 export const DEFAULT_SKIP_TAGS: readonly string[] = [
@@ -34,7 +41,18 @@ export const DEFAULT_SKIP_TAGS: readonly string[] = [
   // Control labels, not prose.
   "button",
   "select",
+  // Navigation and menus inside the content (breadcrumbs, an on-page TOC, an
+  // "open with…" dropdown): link labels, not prose, and often other pages'
+  // titles.
+  "nav",
+  "menu",
 ];
+
+/**
+ * ARIA roles whose subtree is never marked, for menus and navigation built
+ * from generic elements (`<ul role="menu">`). Same reasoning as `nav`/`menu`.
+ */
+export const SKIP_ROLES: readonly string[] = ["menu", "menubar", "menuitem", "navigation"];
 
 /** Classes whose subtree is never marked: rendered math and code-block chrome. */
 export const DEFAULT_SKIP_CLASSES: readonly string[] = ["katex", "expressive-code"];
@@ -82,6 +100,12 @@ export interface TransformHtmlOptions {
   skipClasses?: readonly string[];
   /** Class on the inserted `<span>`. Default `"tm-symbol"`. */
   symbolClass?: string;
+  /**
+   * `target` for notice links (a mark's `link`). Default `"_self"`, which
+   * writes no `target` attribute. Links always carry
+   * `rel="noopener noreferrer"`.
+   */
+  linkTarget?: "_self" | "_blank";
 }
 
 /** What {@link transformHtml} did to a page. */
@@ -90,8 +114,8 @@ export interface TransformHtmlResult {
   html: string;
   /** Every mark the pass found, in order of first appearance. */
   found: Trademark[];
-  /** The notices written into the placeholder(s). */
-  notices: string[];
+  /** The notices written into the placeholder(s), links kept separate. */
+  notices: TrademarkNotice[];
   /** Whether `html` differs from the input. */
   changed: boolean;
 }
@@ -262,6 +286,7 @@ export function transformHtml(html: string, options: TransformHtmlOptions): Tran
     classList(el).some((c) => skipClasses.has(c)) ||
     attr(el, SKIP_ATTR) !== undefined ||
     attr(el, "aria-hidden") === "true" ||
+    (attr(el, "role") ?? "").split(/\s+/).some((r) => SKIP_ROLES.includes(r)) ||
     attr(el, "hidden") !== undefined;
 
   // `resume` is the mode to return to inside an <astro-slot>: an island's own
@@ -357,7 +382,20 @@ export function transformHtml(html: string, options: TransformHtmlOptions): Tran
   });
 
   // ---- notices -----------------------------------------------------------
-  const notices = trademarkNotices(found, marks);
+  const notices = trademarkNoticeEntries(found, marks);
+  const linkTarget = options.linkTarget === "_blank" ? ' target="_blank"' : "";
+  const renderNotice = (n: TrademarkNotice) => {
+    const links = n.links
+      // Validated in defineTrademarks; re-checked here because transformHtml
+      // can be called with a registry that never went through it.
+      .filter(isSafeLink)
+      .map(
+        (url) =>
+          ` <a class="tm-notice__link" href="${escapeAttribute(url)}" rel="noopener noreferrer"${linkTarget}>${escapeText(url)}</a>`
+      )
+      .join("");
+    return `<span class="tm-notice">${escapeText(n.text)}${links}</span>`;
+  };
   for (const { el, slot } of placeholders) {
     const loc = el.sourceCodeLocation;
     if (!loc) continue;
@@ -365,9 +403,7 @@ export function transformHtml(html: string, options: TransformHtmlOptions): Tran
       edits.push({ start: loc.startOffset, end: loc.endOffset, text: "" });
       continue;
     }
-    const body = notices.length
-      ? `${notices.map((n) => `<span class="tm-notice">${escapeText(n)}</span>`).join(" ")} `
-      : "";
+    const body = notices.length ? `${notices.map(renderNotice).join(" ")} ` : "";
     const target = slot?.sourceCodeLocation;
     if (target?.startTag && target.endTag) {
       edits.push({ start: target.startTag.endOffset, end: target.endTag.startOffset, text: body });

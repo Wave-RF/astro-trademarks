@@ -65,6 +65,16 @@ const {
   :where(.tm-notices__list .tm-notice) {
     display: var(--tm-notice-display, inline);
   }
+  /* A mark's `link`, inserted after its notice. */
+  :where(.tm-notice__link) {
+    color: var(--tm-link-color, inherit);
+    text-decoration-line: var(--tm-link-decoration, underline);
+    text-underline-offset: var(--tm-link-underline-offset, 0.15em);
+    overflow-wrap: anywhere;
+  }
+  :where(.tm-notice__link:hover) {
+    color: var(--tm-link-hover-color, var(--tm-link-color, inherit));
+  }
   :where(.tm-notices__disclaimer) {
     color: var(--tm-notices-disclaimer-color, inherit);
   }

@@ -68,6 +68,17 @@ export interface Trademark {
    * must not match "thread" the noun.
    */
   caseSensitive?: boolean;
+  /**
+   * A URL rendered after this mark's notice, e.g. the owner's site — some
+   * owners ask for attribution with a link. `http:` or `https:` only; anything
+   * else (`javascript:`, `data:`, a relative path) is rejected by validation.
+   * In HTML it becomes `<a href>` with the URL as its text; in plain text the
+   * bare URL; in Markdown an autolink. Per mark, not per owner: when several
+   * marks share one notice, their distinct links are listed once each, in the
+   * sentence's mark order. Ignored on a mark that produces no notice (no
+   * `owner` and no `notice`).
+   */
+  link?: string;
   /** URL of the owner's trademark guidance, for audits. Never rendered. */
   source?: string;
 }
@@ -143,6 +154,36 @@ function validateMark(mark: Trademark): void {
       );
     }
   }
+  if (mark.link !== undefined && !isSafeLink(mark.link)) {
+    throw new TypeError(
+      `[astro-trademarks] "${mark.name}": link must be an absolute http: or https: URL with no spaces, quotes or angle brackets, got ${JSON.stringify(mark.link)}.`
+    );
+  }
+}
+
+function hasControlChar(s: string): boolean {
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 0x20 || c === 0x7f) return true;
+  }
+  return false;
+}
+
+/**
+ * An absolute http(s) URL that is also safe to print verbatim as an HTML
+ * attribute value, link text, and a Markdown autolink: no whitespace, control
+ * characters, quotes, backticks or angle brackets. The string is kept as
+ * written (not normalised), so this is stricter than the URL parser.
+ */
+export function isSafeLink(link: unknown): link is string {
+  if (typeof link !== "string" || /[\s"'`<>\\]/.test(link) || hasControlChar(link)) return false;
+  let url: URL;
+  try {
+    url = new URL(link);
+  } catch {
+    return false;
+  }
+  return (url.protocol === "http:" || url.protocol === "https:") && /^https?:\/\//i.test(link);
 }
 
 function compile(marks: readonly Trademark[]): Compiled {
@@ -374,10 +415,18 @@ function sentenceFor(group: Trademark[]): string {
   return endSentence(sentence);
 }
 
+/** One notice: the sentence, plus the distinct links of the marks it covers. */
+export interface TrademarkNotice {
+  text: string;
+  /** Distinct `link`s of the notice's marks, in the sentence's mark order. */
+  links: string[];
+}
+
 /**
- * One attribution sentence per owner, for the marks in `found`:
+ * One attribution notice per owner, for the marks in `found`, with links kept
+ * separate so each output format can render them its own way:
  *
- *   "Kubernetes® and Prometheus® are registered trademarks of The Linux Foundation."
+ *   { text: "Kubernetes® and Prometheus® are registered trademarks of The Linux Foundation.", links: [] }
  *
  * - Owners are listed in the order `found` names them; marks inside one
  *   owner's sentence follow `registry` order (default: `found` order), so a
@@ -387,12 +436,14 @@ function sentenceFor(group: Trademark[]): string {
  *   "used under license" never leaks onto another mark the site owns outright.
  * - A mark with a verbatim `notice` gets that notice as its own line; marks
  *   sharing an identical notice share one line.
- * - Marks without an `owner` produce no sentence: the catch-all covers them.
+ * - Marks without an `owner` (and no `notice`) produce nothing: the catch-all
+ *   covers them, and their `link` is ignored.
+ * - Identical links within one notice are listed once.
  */
-export function trademarkNotices(
+export function trademarkNoticeEntries(
   found: readonly Trademark[],
   registry: readonly Trademark[] = found
-): string[] {
+): TrademarkNotice[] {
   const order = new Map<Trademark, number>();
   registry.forEach((m, i) => {
     order.set(m, i);
@@ -415,17 +466,34 @@ export function trademarkNotices(
   }
 
   return [...groups.values()].map((group) => {
-    const first = group[0] as Trademark;
-    if (first.notice) return first.notice;
-    return sentenceFor([...group].sort((a, b) => rank(a) - rank(b)));
+    const sorted = [...group].sort((a, b) => rank(a) - rank(b));
+    const first = sorted[0] as Trademark;
+    const links = [...new Set(sorted.flatMap((m) => (m.link === undefined ? [] : [m.link])))];
+    return { text: first.notice ?? sentenceFor(sorted), links };
   });
+}
+
+/**
+ * {@link trademarkNoticeEntries} as plain-text lines, each link appended as a
+ * bare URL:
+ *
+ *   "ClickHouse® is a registered trademark of ClickHouse, Inc. https://clickhouse.com"
+ */
+export function trademarkNotices(
+  found: readonly Trademark[],
+  registry: readonly Trademark[] = found
+): string[] {
+  return trademarkNoticeEntries(found, registry).map((n) => [n.text, ...n.links].join(" "));
 }
 
 /** Options for {@link noticesForText}. */
 export interface NoticesForTextOptions {
   /** Line appended after the notices when any mark was found. `false` omits it. */
   catchAll?: string | false;
-  /** Strip fenced code blocks and inline code before scanning (for Markdown). */
+  /**
+   * The text is Markdown: strip fenced code blocks and inline code before
+   * scanning, and write links as autolinks (`<https://…>`) instead of bare URLs.
+   */
   markdown?: boolean;
 }
 
@@ -463,7 +531,9 @@ export function noticesForText(
   const source = options.markdown ? stripMarkdownCode(text) : text;
   const found = findTrademarks(source, marks);
   if (found.length === 0) return [];
-  const lines = trademarkNotices(found, marks);
+  const lines = trademarkNoticeEntries(found, marks).map((n) =>
+    [n.text, ...n.links.map((url) => (options.markdown ? `<${url}>` : url))].join(" ")
+  );
   const catchAll = options.catchAll === undefined ? DEFAULT_CATCH_ALL : options.catchAll;
   if (catchAll) lines.push(catchAll);
   return lines;

@@ -26,8 +26,10 @@ import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import {
+  checkLinks,
   checkSitePage,
   checkStarlight,
+  LINK_EXPECTATIONS,
   SITE_EXPECTATIONS,
   STARLIGHT_EXPECTATIONS,
 } from "../test/fixtures/expectations.mjs";
@@ -185,6 +187,11 @@ for (const variant of selected) {
           checkSitePage(readPage(dir, path), expected, `build ${path}`);
         }
       });
+      await t.test("astro build: notice links", () => {
+        for (const [path, expected] of Object.entries(LINK_EXPECTATIONS)) {
+          checkLinks(readPage(dir, path), expected, `build ${path}`);
+        }
+      });
       await t.test("astro build: symbol styles injected", () => {
         // Inlined into the page, or emitted as a stylesheet, depending on size.
         const astroDir = [join(dir, "dist/client/_astro"), join(dir, "dist/_astro")].find(
@@ -255,10 +262,12 @@ for (const variant of selected) {
           }
         }
       };
-      // Starlight on Astro 7 occasionally starts a dev server whose docs
-      // collection is empty (every page 404s — the route itself is missing, so
-      // no response reaches the middleware). Not reproduced outside this
-      // harness; one restart is allowed and reported, a second failure fails.
+      // Starlight dev servers occasionally start badly in this harness: on
+      // Astro 7 with an empty docs collection (every page 404s — the route is
+      // missing, so no response reaches the middleware), on Astro 6 by
+      // restarting on a "configuration file updated" and never listening
+      // again. Neither reproduced outside the harness; one restart is allowed
+      // and reported, a second failure fails.
       for (let attempt = 1; ; attempt++) {
         const devPort = port++;
         // --ignore-lock: Astro 7 auto-backgrounds `astro dev` when it detects
@@ -273,8 +282,11 @@ for (const variant of selected) {
           await withServer("pnpm", args, dir, devPort, {}, check);
           return;
         } catch (err) {
-          if (attempt >= 2 || !/HTTP 404/.test(err.message)) throw err;
-          tt.diagnostic(`dev server served 404s; restarting once (${err.message.split("\n")[0]})`);
+          // Only dev-server startup trouble earns a retry; a wrong page never does.
+          if (attempt >= 2 || !/HTTP 404|timed out waiting/.test(err.message)) throw err;
+          tt.diagnostic(
+            `dev server did not come up cleanly; restarting once (${err.message.split("\n")[0]})`
+          );
         }
       }
     });

@@ -127,11 +127,12 @@ interface Trademark {
   notice?: string;              // verbatim notice, replaces the generated sentence
   licensed?: boolean | string;  // "used under license"; a string names the licensee
   caseSensitive?: boolean;      // default true
+  link?: string;                // http(s) URL shown after the mark's notice, e.g. the owner's site
   source?: string;              // URL of the owner's guidance, for audits; never rendered
 }
 ```
 
-`defineTrademarks()` returns the array unchanged, typed, and validated: it throws on a symbol other than ® / ™, an empty alias or trigger, or one spelling claimed by two marks.
+`defineTrademarks()` returns the array unchanged, typed, and validated: it throws on a symbol other than ® / ™, an empty alias or trigger, one spelling claimed by two marks, or a `link` that isn't an absolute `http:`/`https:` URL (`javascript:`, `data:`, relative paths, and URLs containing spaces, quotes or angle brackets are all rejected).
 
 Conservative defaults worth keeping:
 
@@ -159,11 +160,24 @@ One sentence per owner, owners in the order the page names them, marks inside on
 | + `licensed: true` | … of Owner and is used under license. |
 | + `licensed: "Example Corp."` | … of Owner, and any use of such mark by Example Corp. is under license. |
 | + `notice: "…"` | the notice, verbatim, on its own line |
+| + `link: "https://clickhouse.example"` | … ClickHouse, Inc. https://clickhouse.example (a link in HTML; see [Notice links](#notice-links)) |
 
 - "registered" appears only when **every** mark in the sentence is ®; otherwise the sentence says "trademarks", which is true of both.
 - Marks are grouped by owner **and** qualifier **and** licensing, so one mark's "used under license" never attaches to another mark of the same owner.
 - A mark with `notice` is never merged into another mark's sentence. Marks that carry the **same** `notice` string share one line, which is how a family of marks gets one owner-mandated sentence.
-- Marks without an `owner` produce no sentence. The catch-all covers them.
+- Marks without an `owner` produce no sentence. The catch-all covers them, and their `link` is ignored.
+
+### Notice links
+
+`link` is **per mark**, not per owner. Owner groups are derived (owner + qualifier + licensing), so a per-mark field keeps each registry entry self-contained and lets marks of one owner carry different URLs. When a sentence covers several marks, their links are listed after it **once per distinct URL**, in the sentence's mark order. Two marks of one owner with the same URL therefore produce one link.
+
+| Output | Rendering |
+|---|---|
+| HTML (the middleware) | `… Inc. <a class="tm-notice__link" href="https://clickhouse.example" rel="noopener noreferrer">https://clickhouse.example</a>`, with the URL attribute-escaped |
+| plain text (`trademarkNotices`, `noticesForText`, `machineReadable.plain`) | `… Inc. https://clickhouse.example` |
+| Markdown (`noticesForText(…, { markdown: true })`, `machineReadable.markdown`) | `… Inc. <https://clickhouse.example>` (an autolink) |
+
+Links always carry `rel="noopener noreferrer"`. They open in the same tab unless you set `linkTarget: "_blank"`. Same-tab is the default because it's how every other link behaves, and a new tab needs an "opens in a new tab" cue to be accessible.
 
 ## Options
 
@@ -175,6 +189,7 @@ trademarks({
   skipTags: [],                  // ADDED to the default skip tags
   skipClasses: [],               // ADDED to the default skip classes
   symbolClass: "tm-symbol",
+  linkTarget: "_self",           // "_blank" opens notice links in a new tab
   injectStyles: true,            // inject styles.css on every page
   onDemand: true,                // also process server-rendered pages
   machineReadable: { markdown: false, plain: false, catchAll: "All other trademarks are the property of their respective owners." },
@@ -187,6 +202,7 @@ trademarks({
 | `presets` | auto | `"starlight"` adds the skip classes listed below. |
 | `skipTags` / `skipClasses` | `[]` | Added to the defaults. |
 | `symbolClass` | `"tm-symbol"` | Class on the inserted `<span>`. |
+| `linkTarget` | `"_self"` | `"_blank"` adds `target="_blank"` to [notice links](#notice-links). `rel="noopener noreferrer"` is always set. |
 | `injectStyles` | `true` | Injects `@wave-rf/astro-trademarks/styles.css`. Set `false` and import it yourself, or style `.tm-symbol` your own way. |
 | `onDemand` | `true` | Marking needs the whole page, so an on-demand HTML response is **buffered** before it is sent (prerendered pages are unaffected). Set `false` to process prerendered pages only. |
 | `machineReadable.markdown` | `false` | Append attribution to `text/markdown` responses (fenced and inline code are ignored when scanning). |
@@ -203,6 +219,7 @@ By default `text/markdown` and `text/plain` responses are **not touched**, byte 
 | `code`, `pre`, `kbd`, `samp`, `var` | A symbol inside a command or identifier is a bug. |
 | `svg`, `math`, `.katex`, `.expressive-code` | Rendered diagrams, math and code-block chrome. |
 | `button`, `select` | Control labels, not prose. |
+| `nav`, `menu`, `[role="menu"]`, `[role="menubar"]`, `[role="menuitem"]`, `[role="navigation"]` | Menus and navigation inside the content, such as breadcrumbs, an on-page TOC or an "open with…" dropdown. These are link labels, often other pages' titles, not prose. |
 | `[aria-hidden="true"]`, `[hidden]` | Using the page's one marking on text a screen reader skips, or nobody sees, means the reader never gets it. |
 | `[data-tm-skip]` | Your opt-out for any element. |
 | `<astro-island>` markup | A framework island re-renders on hydration, so a symbol there would be a hydration mismatch. Slotted children (`<astro-slot>`) are static server HTML and **are** marked. |
@@ -244,10 +261,14 @@ Everything is CSS custom properties, at zero specificity (`:where`), with no Tai
 | `--tm-notices-title-color` | `inherit` |
 | `--tm-notices-disclaimer-color` | `inherit` |
 | `--tm-notice-display` | `inline` (set `block` for one notice per line) |
+| `--tm-link-color` | `inherit` |
+| `--tm-link-hover-color` | `--tm-link-color` |
+| `--tm-link-decoration` | `underline` (the link's `text-decoration-line`) |
+| `--tm-link-underline-offset` | `0.15em` |
 | `--tm-symbol-font-size` | `0.62em` |
 | `--tm-symbol-offset` | `0.45em` (the symbol's `vertical-align`) |
 
-Class hooks: `.tm-notices`, `.tm-notices__title`, `.tm-notices__body`, `.tm-notices__list`, `.tm-notice`, `.tm-notices__catch-all`, `.tm-notices__disclaimer`, `.tm-symbol`.
+Class hooks: `.tm-notices`, `.tm-notices__title`, `.tm-notices__body`, `.tm-notices__list`, `.tm-notice`, `.tm-notice__link`, `.tm-notices__catch-all`, `.tm-notices__disclaimer`, `.tm-symbol`.
 
 ## The pure core
 
@@ -257,8 +278,10 @@ Class hooks: `.tm-notices`, `.tm-notices__title`, `.tm-notices__body`, `.tm-noti
 import {
   findTrademarks,      // (text, marks) => Trademark[]  — every mark named, aliases + triggers, first-appearance order
   markFirstMentions,   // (text, marks, marked?: Set) => { text, mark? }[]
-  trademarkNotices,    // (found, registry?) => string[]  — one sentence per owner
-  noticesForText,      // (text, marks, { catchAll?, markdown? }) => string[]
+  trademarkNotices,    // (found, registry?) => string[]  — one line per owner, links as bare URLs
+  trademarkNoticeEntries, // (found, registry?) => { text, links }[]  — the same, links kept separate
+  noticesForText,      // (text, marks, { catchAll?, markdown? }) => string[]  — markdown: code ignored, links as autolinks
+  isSafeLink,          // (url) => boolean  — the check `link` must pass
   DEFAULT_CATCH_ALL,
 } from "@wave-rf/astro-trademarks/core";
 ```
@@ -286,7 +309,7 @@ const out = lines.length ? `${markdown}\n\n${lines.join(" ")}\n` : markdown;
 
 Or let the middleware do it with `machineReadable`.
 
-Lower-level exports from the main entry: `transformHtml(html, options)` (the HTML pass on its own, e.g. for a post-build script), `transformResponse`, `createTrademarksMiddleware` (to compose into your own `src/middleware.ts` instead of using the integration), `resolveOptions`, `DEFAULT_SKIP_TAGS`, `DEFAULT_SKIP_CLASSES`, `STARLIGHT_SKIP_CLASSES`.
+Lower-level exports from the main entry: `transformHtml(html, options)` (the HTML pass on its own, e.g. for a post-build script; returns `{ html, found, notices, changed }` with `notices` as `{ text, links }` entries), `transformResponse`, `createTrademarksMiddleware` (to compose into your own `src/middleware.ts` instead of using the integration), `resolveOptions`, `DEFAULT_SKIP_TAGS`, `DEFAULT_SKIP_CLASSES`, `SKIP_ROLES`, `STARLIGHT_SKIP_CLASSES`.
 
 ## How it works, and its limits
 
