@@ -1,0 +1,27 @@
+---
+import { ClientRouter } from "astro:transitions";
+import TrademarkNotices from "@wave-rf/astro-trademarks/TrademarkNotices.astro";
+
+const { title = "Fixture" } = Astro.props.frontmatter ?? Astro.props;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>{title} — ClickHouse</title>
+    <ClientRouter />
+  </head>
+  <body>
+    <nav><a href="/">Home</a> <a href="/markdown/">Markdown</a> Kubernetes in the nav</nav>
+    <main>
+      <slot />
+    </main>
+    <footer>
+      <p>Powered by Kubernetes.</p>
+      <TrademarkNotices
+        title="Trademark notices"
+        disclaimer="Fixture Co. is not affiliated with the trademark holders named above."
+      />
+    </footer>
+  </body>
+</html>

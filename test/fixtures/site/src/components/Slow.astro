@@ -1,0 +1,6 @@
+---
+// Holds the stream open: the page's head has been flushed before this resolves.
+await new Promise((resolve) => setTimeout(resolve, 150));
+---
+
+<p class="slow">Late arrival: Docker, then Docker again.</p>
