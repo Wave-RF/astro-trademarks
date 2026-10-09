@@ -1,0 +1,39 @@
+name: PR title
+
+# Validates the PR title against Conventional Commits — the SAME rule the local
+# agent gate checks (scripts/lint-pr-title.sh is the single source of truth), and
+# the title becomes the squash-merge commit subject that release-please parses
+# for the version bump. Required check (see scripts/setup-repo.sh).
+#
+# pull_request_target runs in the BASE repo's context, so the trusted base copy
+# of scripts/lint-pr-title.sh runs (not a fork's). The title is passed via env,
+# never interpolated into the shell, so a crafted title can't inject commands.
+
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-title:
+    name: pr-title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Validate PR title (Conventional Commits)
+        # Dependency-bot titles aren't author-controlled (capitalised subjects,
+        # grouped updates over the length cap), but their prefix is already a
+        # valid Conventional-Commit type, so trust the bot and skip the check
+        # (the step skips → the job still succeeds → the required check is
+        # green). Renovate is the planned updater; Dependabot is kept in case.
+        if: ${{ github.event.pull_request.user.login != 'renovate[bot]' && github.event.pull_request.user.login != 'dependabot[bot]' }}
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: bash scripts/lint-pr-title.sh "$TITLE"

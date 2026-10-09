@@ -1,0 +1,18 @@
+# pnpm config. pnpm 11 reads its settings from here even for a single-package
+# repo (the filename is historical — this is NOT a multi-package workspace decl).
+#
+# Don't auto-install the peer dep (astro) on top of the devDependency copy: the
+# consumer's site provides the astro it builds against, and we already pull a
+# copy in devDependencies for `pnpm run typecheck`.
+autoInstallPeers: false
+#
+# allowBuilds — astro drags in native packages (esbuild, sharp) that ship
+# postinstall build scripts. pnpm 11 won't run them unprompted and, left
+# unacknowledged, errors with ERR_PNPM_IGNORED_BUILDS (a non-zero exit that
+# fails the CI install). The unit tests and `tsc` never run esbuild/sharp, so
+# each is set to `false`: acknowledged, NOT built. The fixture builds
+# (scripts/test-fixtures.mjs) install into their own temp dirs with their own
+# settings.
+allowBuilds:
+  esbuild: false
+  sharp: false
