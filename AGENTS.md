@@ -8,7 +8,7 @@ The non-negotiables, ordered by how often agents miss them. These override conve
 
 1. **Validate locally before every push** — `pnpm run verify` (Biome + `tsc --noEmit` + `node --test`). Don't use CI as your first feedback loop ([§Local-First Validation](#local-first-validation)). A change to the engine, the middleware, the component or the integration also runs **`pnpm run test:fixtures`** (real Astro builds) before pushing.
 2. **A PR-branch push needs every pre-push reviewer satisfied** — run **`/prepush`**: it reads `scripts/pre-push-reviewers.sh`, runs the reviewers the change needs in parallel (fresh context), skips the rest *on the record*, and loops until each it ran returns `ship_it` ([§Agent PR Discipline](#agent-pr-discipline)).
-3. **Every public-surface change updates its docs in the same PR** — a changed option, default, export, `Trademark` field, component prop, CSS variable, skip rule or notice wording must update the **`src/` JSDoc** **and** `README.md` ([§Documentation Sync](#documentation-sync)). The `CHANGELOG.md` is **auto-generated** — don't hand-edit it; just use the right Conventional-Commit type.
+3. **Every public-surface change updates its docs in the same PR** — a changed option, default, export, `Trademark` field, component prop, CSS variable, skip rule or notice wording must update the **`src/` JSDoc** **and** `README.md` ([§Documentation Sync](#documentation-sync)). Release notes are generated into GitHub Releases - there is no changelog to edit; just use the right Conventional-Commit type, because it decides whether the merge releases (§Release Process).
 4. **No legal claims in the package.** Never ship a list of marks, a default owner, or wording about a specific company. Examples in docs are labelled illustrative; fixtures are test data. Notice wording changes are `feat`/`fix` with the before/after sentence in the PR body — they change what every consumer's site asserts.
 5. **Address and resolve every review finding** — fix it or track it in an issue; never silently drop one ([§Review Response](#review-response)).
 6. **Drafts only; valid title** — `gh pr create --draft` (never `gh pr ready`/approve); the PR **title** must pass Conventional Commits — check with `scripts/lint-pr-title.sh "<title>"` before creating ([§Agent PR Discipline](#agent-pr-discipline)).
@@ -68,14 +68,20 @@ Bypass (`--no-verify`) is for human WIP only; agents must not (§Don't bypass th
 
 ## Release Process
 
-Releases are **automated by release-please** from Conventional Commits — you rarely touch a version by hand. The flow:
+**Releases happen on merge**, driven by [semantic-release](https://semantic-release.org) (`.releaserc.json`, run by `publish-npm.yml` on every push to `main`). There is no release PR, no version bump commit and no token: the git tag `vX.Y.Z` is the version's source of truth, and GitHub Releases hold the notes. **The squash-merge title (a Conventional Commit, already enforced by the required `pr-title` check) decides whether the merge releases:**
 
-1. Land PRs with Conventional-Commit titles (squash-merge → the title is the commit release-please parses).
-2. release-please maintains an open **release PR** that bumps `package.json` `version`, updates `CHANGELOG.md`, and updates `.release-please-manifest.json`. During 0.x: **breaking (`feat!`/`BREAKING CHANGE`) → minor**, **`feat`/`fix` → patch** (see `release-please-config.json`), so `^0.x` consumers safely auto-update.
-3. **Merging the release PR** ships it: release-please tags `vX.Y.Z` + creates the GitHub Release, and the same `publish-npm.yml` run builds `dist/` and publishes to npm (`latest`, or `alpha`/`beta`/`rc`/`next` for a prerelease) with provenance via OIDC.
-4. Independently, **every push to `main`** publishes a content-addressed `0.0.0-dev.<hash>` under the **`dev`** dist-tag (never the `latest` consumers get).
+| Title type | Release |
+| ---------- | ------- |
+| `fix:` `perf:` `revert:` | patch |
+| `feat:` | minor |
+| `!` after the type, or a `BREAKING CHANGE:` footer | **major** (no 0.x shielding; the first breaking change goes to `1.0.0`) |
+| `deps:` `ci:` `chore:` `docs:` `test:` `refactor:` `build:` `style:` | none |
 
-Use **`/release`** to inspect the pending release. Don't hand-edit `CHANGELOG.md` / `version` / the manifest — release-please owns them. **First-time setup** (npm org, one-time manual publish, OIDC trusted publisher, optional PAT, branch protection) lives in [`RELEASING.md`](RELEASING.md).
+- `package.json` `version` is a placeholder (`0.1.0` until the bootstrap follow-up sets `0.0.0-development`); semantic-release sets the real version in the CI workspace only. **Never bump it, never create tags by hand, never hand-edit `CHANGELOG.md`.**
+- **Bootstrap:** until the one-time manual 0.1.0 publish and the `v0.1.0` tag exist, `scripts/release-guard.sh` makes the workflow skip semantic-release entirely. See [`RELEASING.md`](RELEASING.md) "Bootstrap (one-time)".
+- The package ships compiled `dist/`; the workflow runs `pnpm run verify` then `pnpm run build` before semantic-release publishes.
+- If a release fails, semantic-release opens a "release failed" issue; fix the cause and re-run the failed run. Caveat: the tag is pushed *before* publishing, so a failure after that point needs the tag deleted first (see RELEASING.md Failures).
+- Use **`/release`** to see what the next merge would release. **Full detail** lives in [`RELEASING.md`](RELEASING.md).
 
 ## Review Response
 
@@ -100,7 +106,7 @@ Agents follow the universal git hooks (pre-commit + pre-push in `.githooks/`). O
 
 Create PRs with `gh pr create --draft`. Only humans flip draft → ready (`gh pr ready` is blocked) and only humans approve / request changes (`gh pr review --approve`/`--request-changes` are blocked). Adding/removing human reviewers is humans-only.
 
-**PR title format** — the title becomes the squash-merge subject on `main` (which release-please parses), and is gated by the required `pr-title` check. Conventional Commits: `<type>(optional-scope)(optional-!): <subject>`, **≤ 72 chars**, subject lowercase-first, no trailing period. Types: `feat fix docs refactor test chore ci deps build perf revert style`. Validate before creating: `scripts/lint-pr-title.sh "<title>"`. The same script backs the local gate and the CI check, so they never drift.
+**PR title format** — the title becomes the squash-merge subject on `main` (which semantic-release parses), and is gated by the required `pr-title` check. Conventional Commits: `<type>(optional-scope)(optional-!): <subject>`, **≤ 72 chars**, subject lowercase-first, no trailing period. Types: `feat fix docs refactor test chore ci deps build perf revert style`. Validate before creating: `scripts/lint-pr-title.sh "<title>"`. The same script backs the local gate and the CI check, so they never drift.
 
 ### Pre-push self-review is mandatory on PR branches
 
@@ -140,7 +146,7 @@ Every change to the public surface updates its docs in the same PR:
 | Change a component prop, class hook or CSS variable | `components/TrademarkNotices.astro`, `styles.css`, `README.md` (`<TrademarkNotices />`, Styling) |
 | Add/modify an export or subpath | `src/index.ts`, `package.json` `exports`, `README.md` (The pure core) |
 | Change `peerDependencies` / `engines` / verified Astro versions | `package.json`, `README.md` (Install, How it works), `scripts/test-fixtures.mjs` `VARIANTS` |
-| Any change | a Conventional-Commit message (release-please writes `CHANGELOG.md`) |
+| Any change | a Conventional-Commit message (it decides the release; notes go to GitHub Releases) |
 
 Before finishing, grep the identifiers you touched (option names, export names, class names, CSS variables) across `README.md`, `components/` and `src/` to catch staleness. Prose quality + code↔docs sync are gated by the `docs-reviewer`.
 
@@ -171,6 +177,6 @@ tsconfig.json / tsconfig.build.json → typecheck (src + test) / emit (src → d
 
 - **`ci.yml`** — `ci` job: Biome + `tsc --noEmit` + `node --test` on every PR/push (Node 24). `fixtures` job: `pnpm run test:fixtures` (real Astro builds; slower, network-bound).
 - **`pr-title.yml`** — Conventional-Commit title check (required).
-- **`publish-npm.yml`** — release-please + OIDC publish to `latest`/prerelease, and the `@dev` content-addressed channel on every main push. ONE file (npm allows one trusted-publisher filename per package). It reads the package name from `package.json` and builds `dist/` before publishing.
+- **`publish-npm.yml`** — release-on-merge: bootstrap guard, `verify`, `build`, then semantic-release + OIDC publish. ONE file (npm allows one trusted-publisher filename per package).
 - Dependency updates: Renovate is planned (no Dependabot config).
-- Third-party actions are pinned to commit SHAs with version comments where verified (`googleapis/release-please-action` is on a major tag pending a SHA pin).
+- Third-party actions are pinned to commit SHAs with version comments where verified (none currently pending).

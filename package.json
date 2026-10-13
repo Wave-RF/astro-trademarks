@@ -76,7 +76,8 @@
     "lint": "biome lint .",
     "format": "biome format --write .",
     "check": "biome check .",
-    "verify": "biome check . && pnpm run typecheck && pnpm test && bash scripts/ci-marker.sh write",
+    "check:release": "node scripts/check-release-config.mjs",
+    "verify": "biome check . && pnpm run typecheck && pnpm test && pnpm run check:release && bash scripts/ci-marker.sh write",
     "setup": "git config core.hooksPath .githooks"
   },
   "dependencies": {
@@ -88,8 +89,12 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
+    "@semantic-release/commit-analyzer": "13.0.1",
+    "@semantic-release/release-notes-generator": "14.1.1",
     "@types/node": "^24.0.0",
     "astro": "^7.3.5",
+    "conventional-changelog-conventionalcommits": "9.3.1",
+    "semantic-release": "25.0.9",
     "typescript": "^6.0.3"
   }
 }

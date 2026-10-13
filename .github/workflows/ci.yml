@@ -51,6 +51,11 @@ jobs:
       - name: Unit + golden tests (node --test)
         run: pnpm test
 
+      # The preset and the notes generator are coupled; an incompatible bump only
+      # fails at generateNotes, mid-release on main. Catch it on the PR instead.
+      - name: Release config (analyzer + notes, offline)
+        run: pnpm run check:release
+
       - name: Build (tsc -> dist)
         run: pnpm run build
 
