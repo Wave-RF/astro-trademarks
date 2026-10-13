@@ -118,3 +118,18 @@ gh release view v<version>
 - **OIDC publish failed (`401`/`403`/`ENEEDAUTH`).** The trusted-publisher config doesn't match (org, repo, workflow filename `publish-npm.yml`), or `setup-node` was given `registry-url`, or the runner's npm is older than 11.5.1.
 - **"No release" right after a failed publish.** The tag already exists; see *Failure after the tag is pushed*.
 - **Release notes show the wrong range.** semantic-release uses the latest tag reachable from `main`. Don't hand-create tags (other than the one-time `v0.1.0`).
+
+## A merge that didn't release
+
+GitHub starts no workflow for a push made with the built-in `GITHUB_TOKEN`, and Dependabot's auto-merge (enabled by `dependabot-automerge.yml` with that token) is such a push. So:
+
+- an auto-merged Dependabot PR runs no release job (harmless on its own: `deps:`/`ci:` never release), and
+- if it lands while the release job for an earlier `fix:`/`feat:` merge is starting, that job logs **"The local branch main is behind the remote one, therefore a new version won't be published"** and exits green — and no later run comes to pick the commit up.
+
+Either way, run the release by hand from `main`:
+
+```bash
+gh workflow run publish-npm.yml -R Wave-RF/astro-trademarks --ref main
+```
+
+It is safe to run any time: semantic-release re-reads every commit since the last `vX.Y.Z` tag and releases only if one of them warrants it.
