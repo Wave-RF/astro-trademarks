@@ -77,7 +77,7 @@ Bypass (`--no-verify`) is for human WIP only; agents must not (§Don't bypass th
 | `!` after the type, or a `BREAKING CHANGE:` footer | **major** (no 0.x shielding; the first breaking change goes to `1.0.0`) |
 | `deps:` `ci:` `chore:` `docs:` `test:` `refactor:` `build:` `style:` | none |
 
-- `package.json` `version` is a placeholder (`0.1.0` until the bootstrap follow-up sets `0.0.0-development`); semantic-release sets the real version in the CI workspace only. **Never bump it, never create tags by hand, never hand-edit `CHANGELOG.md`.**
+- `package.json` `version` is the placeholder `0.0.0-development`; semantic-release sets the real version in the CI workspace only. **Never bump it, never create tags by hand, never hand-edit `CHANGELOG.md`.**
 - **Bootstrap:** until the one-time manual 0.1.0 publish and the `v0.1.0` tag exist, `scripts/release-guard.sh` makes the workflow skip semantic-release entirely. See [`RELEASING.md`](RELEASING.md) "Bootstrap (one-time)".
 - The package ships compiled `dist/`; the workflow runs `pnpm run verify` then `pnpm run build` before semantic-release publishes.
 - If a release fails, semantic-release opens a "release failed" issue; fix the cause and re-run the failed run. Caveat: the tag is pushed *before* publishing, so a failure after that point needs the tag deleted first (see RELEASING.md Failures).
