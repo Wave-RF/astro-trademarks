@@ -63,10 +63,11 @@ jobs:
         with:
           node-version: "24"
 
-      # No committed lockfile (library — see .gitignore); semantic-release and
-      # its preset are pinned to exact versions in package.json instead.
+      # Build the release from the committed pnpm-lock.yaml: the tree CI tested.
+      # semantic-release and its preset are also pinned to exact versions in
+      # package.json.
       - if: steps.guard.outputs.bootstrapped == 'true'
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       # A red main never releases.
       - if: steps.guard.outputs.bootstrapped == 'true'

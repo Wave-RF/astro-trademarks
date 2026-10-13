@@ -38,9 +38,10 @@ jobs:
           # Node 24 — matches .nvmrc and the publish job.
           node-version: "24"
 
-      # No committed lockfile (this is a library — see .gitignore), so a frozen
-      # install would fail; resolve fresh.
-      - run: pnpm install --no-frozen-lockfile
+      # Install exactly the committed pnpm-lock.yaml, so CI tests the dependency
+      # tree that gets reviewed and released. (The lockfile doesn't reach
+      # consumers; they resolve with their own.)
+      - run: pnpm install --frozen-lockfile
 
       - name: Lint + format check (Biome)
         run: pnpm run check
@@ -78,7 +79,7 @@ jobs:
         with:
           node-version: "24"
 
-      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm install --frozen-lockfile
 
       - name: Fixture builds (Astro 6, Astro 7, Starlight)
         run: pnpm run test:fixtures
