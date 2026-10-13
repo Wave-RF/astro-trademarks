@@ -1,8 +1,10 @@
 # Releasing & maintenance
 
-How `@wave-rf/astro-trademarks` is published. **Releases happen on merge to `main`**, driven by [semantic-release](https://semantic-release.org); there is no release PR and nothing to click. The package has **not been published yet**: do the [Bootstrap (one-time)](#bootstrap-one-time) first.
+How `@wave-rf/astro-trademarks` is published. **Releases happen on merge to `main`**, driven by [semantic-release](https://semantic-release.org); there is no release PR and nothing to click. The one-time [bootstrap](#bootstrap-one-time) is **done**: `0.1.0` was published by hand on 2026-10-13 from `8a9ccf7`, which carries the `v0.1.0` tag, so every release since starts from that tag.
 
 ## Bootstrap (one-time)
+
+_Completed 2026-10-13 (steps 1-5 below). Kept as the record of how the package was created, and as the recipe if it ever has to be re-created._
 
 > **Why the first publish is manual:** npm OIDC trusted publishing can't *create* a package; the trusted-publisher config attaches to an existing package. So `0.1.0` is published by hand from a laptop. Until a `v*` tag exists, the workflow's guard (`scripts/release-guard.sh`) prints a notice and skips semantic-release entirely. Without the guard, semantic-release would treat the whole history as a first release, compute `1.0.0`, and fail trying to publish a package that doesn't exist.
 
